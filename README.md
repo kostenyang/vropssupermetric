@@ -1,12 +1,21 @@
 # vROps Super Metrics — Snapshot VM 統計
 
 兩個拿來抓「忘了刪的 VM 快照」的 super metric,給 VMware Aria Operations (vROps) 用。
-在 Cluster 物件上會看到兩個數字:**目前有快照的 VM 總數**、**快照超過 90 天的 VM 總數**。
+**同一組 formula** 可以同時在多個物件層級看到對應範圍的總數:
+
+| Enable 在哪個 Object Type | 看到的是 |
+| --- | --- |
+| **Cluster Compute Resource** | 那個 Cluster 底下有快照的 VM 數 |
+| **VMwareAdapter Instance**(每個 vCenter) | 那個 vCenter 底下所有 VM 的快照數 |
+| **Datacenter** | 那個 Datacenter 底下的快照數 |
+| **vSphere World** | 整個 vROps 看得到的所有 VM(全 lab 加總) |
+
+因為 formula 用 `depth=10`,super metric 會自動往下找 VM 子物件,所以不用為每個層級各寫一份。Policy 裡多 enable 幾個 Object Type 就會多看到幾條線。
 
 | 項目 | 值 |
 | --- | --- |
 | 目標 vROps 版本 | Aria Operations 8.18.x(8.x 普遍可用) |
-| Attach 物件類型 | `ClusterComputeResource`(可改 Datacenter / vCenter Adapter Instance) |
+| Attach 物件類型 | `ClusterComputeResource` + `VMwareAdapter Instance`(by vCenter),其它層級隨需求加 |
 | 依賴 metric | VM property `diskspace\|snapshot\|snapshotAge` |
 | Lab 範例 vROps | `https://10.0.0.111` (`admin` / `VMware1!`) |
 
@@ -132,12 +141,18 @@ vROps 8.x 公開 REST API **沒有**端點可以在 policy 裡啟用 super metri
 1. **Configure → Policies**
 2. 找 active 的 default policy(Lab 是 `vSphere Solution's Default Policy`,旁邊有 ★),點 **Edit**
 3. 左側分頁切到 **「Collect Metrics and Properties」**
-4. 上方 Object Type 下拉選 **「Cluster Compute Resource」**
+4. 上方 Object Type 下拉先選 **「Cluster Compute Resource」**
 5. 右上 filter 切到 **「Super Metric」**
 6. 找到 `Snapshot VM Count` 和 `Snapshot VM Count (Over 90 Days)`,**State** 從 `inherited` 改成 **Enabled / Activated**
-7. 右下 **Save**
+7. **重複 step 4–6,把 Object Type 改成 「VMwareAdapter Instance」**(這層就是 by vCenter)
+   - 一樣 enable 同兩個 SM
+   - 之後同一個 SM,在 Cluster object 看到的是 cluster 範圍的總數,在 vCenter adapter instance 看到的是整個 vCenter 的總數
+8. 右下 **Save**
 
-要在別的層級(Datacenter / vCenter Adapter Instance)看到一樣的值,把 step 4 換成對應 Object Type 再 enable 一次即可,formula 可共用,因為 `depth=10` 一定找得到子 VM。
+### 同理:要看 by Datacenter / by 整個 lab
+
+把 step 4 換成 `Datacenter` 或 `vSphere World`,enable 同樣兩個 SM 即可。
+Formula 共用、不用建新的,因為 `depth=10` 會自動往下抓所有 VM 子物件。
 
 ---
 
@@ -151,13 +166,18 @@ curl -sk -u admin:VMware1! \
     "https://10.0.0.111/suite-api/api/resources?resourceKind=ClusterComputeResource" \
     -H 'Accept: application/json' | jq -r '.resourceList[] | "\(.identifier)  \(.resourceKey.name)"'
 
+# 或找 vCenter Adapter Instance(by vCenter 的那層)
+curl -sk -u admin:VMware1! \
+    "https://10.0.0.111/suite-api/api/resources?resourceKind=VMwareAdapter%20Instance" \
+    -H 'Accept: application/json' | jq -r '.resourceList[] | "\(.identifier)  \(.resourceKey.name)"'
+
 # 看 latest stats(super metric 也會在這裡)
 curl -sk -u admin:VMware1! \
-    "https://10.0.0.111/suite-api/api/resources/<CLUSTER_ID>/stats/latest" \
+    "https://10.0.0.111/suite-api/api/resources/<RESOURCE_ID>/stats/latest" \
     -H 'Accept: application/json' | jq '.values[].["stat-list"].stat[] | select(.statKey.key | contains("Snapshot VM"))'
 ```
 
-或 UI:Cluster → **All Metrics → Super Metrics** 樹下會出現兩條線。
+或 UI:Cluster / vCenter object → **All Metrics → Super Metrics** 樹下會出現兩條線。
 
 ---
 
