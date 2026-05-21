@@ -1,0 +1,5 @@
+{
+  "name": "Snapshot VM Count (Over 90 Days)",
+  "description": "Count of VMs with snapshots older than 90 days (diskspace|snapshot|snapshotAge > 90). Attach to ClusterComputeResource.",
+  "formula": "count(${depth=10, adapterkind=VMWARE, resourcekind=VirtualMachine, attribute=diskspace|snapshot|snapshotAge, where=\"> 90\"})"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Snapshot VM Count",
+  "description": "Count of VMs that currently have at least one snapshot (diskspace|snapshot|snapshotAge >= 0). Attach to ClusterComputeResource.",
+  "formula": "count(${depth=10, adapterkind=VMWARE, resourcekind=VirtualMachine, attribute=diskspace|snapshot|snapshotAge, where=\">= 0\"})"
+}
